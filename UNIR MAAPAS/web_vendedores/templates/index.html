@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Registro de Mapas - Vendedores</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .card {
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.10);
+      padding: 40px 36px;
+      width: 100%;
+      max-width: 480px;
+    }
+
+    .logo {
+      text-align: center;
+      margin-bottom: 28px;
+    }
+
+    .logo span {
+      font-size: 2.5rem;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.4rem;
+      color: #1a202c;
+      margin-bottom: 6px;
+    }
+
+    p.sub {
+      text-align: center;
+      color: #718096;
+      font-size: 0.9rem;
+      margin-bottom: 28px;
+    }
+
+    label {
+      display: block;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #4a5568;
+      margin-bottom: 6px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px 14px;
+      border: 1.5px solid #e2e8f0;
+      border-radius: 10px;
+      font-size: 0.95rem;
+      color: #2d3748;
+      transition: border 0.2s;
+      margin-bottom: 18px;
+    }
+
+    input:focus {
+      outline: none;
+      border-color: #4299e1;
+    }
+
+    button {
+      width: 100%;
+      padding: 13px;
+      background: #4299e1;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover { background: #3182ce; }
+    button:disabled { background: #a0aec0; cursor: not-allowed; }
+
+    .mensaje {
+      margin-top: 18px;
+      padding: 12px 16px;
+      border-radius: 10px;
+      font-size: 0.9rem;
+      text-align: center;
+      display: none;
+    }
+
+    .mensaje.ok    { background: #c6f6d5; color: #276749; }
+    .mensaje.error { background: #fed7d7; color: #9b2c2c; }
+
+    .historial {
+      margin-top: 28px;
+      border-top: 1px solid #e2e8f0;
+      padding-top: 20px;
+    }
+
+    .historial h2 {
+      font-size: 0.95rem;
+      color: #4a5568;
+      margin-bottom: 12px;
+    }
+
+    .item {
+      background: #f7fafc;
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 8px;
+      font-size: 0.85rem;
+      color: #2d3748;
+    }
+
+    .item span { color: #718096; font-size: 0.78rem; display: block; margin-top: 2px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo"><span>🗺️</span></div>
+    <h1>Registro de Mapas</h1>
+    <p class="sub">Ingresa tu nombre y pega el enlace de tu mapa de Google Maps</p>
+
+    <label for="nombre">Tu nombre</label>
+    <input type="text" id="nombre" placeholder="Ej: Juan Pérez" autocomplete="off"/>
+
+    <label for="enlace">Enlace del mapa</label>
+    <input type="url" id="enlace" placeholder="https://www.google.com/maps/d/viewer?mid=..."/>
+
+    <button id="btn" onclick="enviar()">Guardar mapa</button>
+
+    <div style="display: flex; gap: 8px; margin-top: 12px;">
+      <button style="flex: 1; background: #FF9800; padding: 10px;" onclick="separar()">✂️ Nueva Sesión</button>
+      <button style="flex: 1; background: #9E9E9E; padding: 10px;" onclick="limpiar()">🗑️ Limpiar Todo</button>
+    </div>
+
+    <div class="mensaje" id="msg"></div>
+
+    <div class="historial" id="historial" style="display:none">
+      <h2>📋 Enviados en esta sesión</h2>
+      <div id="lista"></div>
+    </div>
+  </div>
+
+  <script>
+    async function enviar() {
+      const nombre = document.getElementById("nombre").value.trim();
+      const enlace = document.getElementById("enlace").value.trim();
+      const btn    = document.getElementById("btn");
+      const msg    = document.getElementById("msg");
+
+      msg.style.display = "none";
+
+      if (!nombre || !enlace) {
+        mostrarMsg("Por favor completa todos los campos.", "error");
+        return;
+      }
+
+      if (!enlace.includes("google.com/maps")) {
+        mostrarMsg("El enlace no parece ser de Google Maps.", "error");
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = "Guardando...";
+
+      try {
+        const res  = await fetch("/guardar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ nombre, enlace })
+        });
+        const data = await res.json();
+
+        if (data.ok) {
+          mostrarMsg(data.msg, "ok");
+          agregarHistorial(nombre, enlace);
+          document.getElementById("nombre").value = "";
+          document.getElementById("enlace").value = "";
+        } else {
+          mostrarMsg(data.msg, "error");
+        }
+      } catch (e) {
+        mostrarMsg("Error de conexión. Intenta de nuevo.", "error");
+      }
+
+      btn.disabled = false;
+      btn.textContent = "Guardar mapa";
+    }
+
+    function mostrarMsg(texto, tipo) {
+      const msg = document.getElementById("msg");
+      msg.textContent = texto;
+      msg.className = "mensaje " + tipo;
+      msg.style.display = "block";
+    }
+
+    function agregarHistorial(nombre, enlace) {
+      const historial = document.getElementById("historial");
+      const lista     = document.getElementById("lista");
+      historial.style.display = "block";
+
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `<strong>${nombre}</strong><span>${enlace}</span>`;
+      lista.prepend(div);
+    }
+
+    async function separar() {
+      if (!confirm("¿Iniciar nueva sesión? Los siguientes mapas irán en un grupo separado.")) return;
+      
+      try {
+        const res = await fetch("/separar", { method: "POST" });
+        const data = await res.json();
+        mostrarMsg(data.msg, "ok");
+      } catch (e) {
+        mostrarMsg("Error al separar sesión.", "error");
+      }
+    }
+
+    async function limpiar() {
+      if (!confirm("¿ELIMINAR TODOS los datos del Excel? Esta acción no se puede deshacer.")) return;
+      
+      try {
+        const res = await fetch("/limpiar", { method: "POST" });
+        const data = await res.json();
+        mostrarMsg(data.msg, "ok");
+        document.getElementById("lista").innerHTML = "";
+        document.getElementById("historial").style.display = "none";
+      } catch (e) {
+        mostrarMsg("Error al limpiar.", "error");
+      }
+    }
+
+    // Enviar con Enter
+    document.addEventListener("keydown", e => {
+      if (e.key === "Enter") enviar();
+    });
+  </script>
+</body>
+</html>
